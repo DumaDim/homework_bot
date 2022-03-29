@@ -51,7 +51,7 @@ def get_api_answer(current_timestamp):
         response = requests.get(ENDPOINT, headers=HEADERS, params=params)
     except Exception:
         message = 'API ведет себя некорректно'
-        #logging.error(message)
+        logging.error(message)
         raise Exception(message)
     try:
         if response.status_code != HTTPStatus.OK:
@@ -60,7 +60,7 @@ def get_api_answer(current_timestamp):
             raise Exception(message)
     except Exception:
         message = 'API ведет себя некорректно'
-        #logging.error(message)
+        logging.error(message)
         raise Exception(message)
     return response.json()
 
