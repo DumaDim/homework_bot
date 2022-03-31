@@ -2,9 +2,9 @@ from http import HTTPStatus
 import os
 import time
 import logging
-import requests
-
 import telegram
+
+import requests
 
 from dotenv import load_dotenv
 
@@ -20,18 +20,11 @@ ENDPOINT = 'https://practicum.yandex.ru/api/user_api/homework_statuses/'
 HEADERS = {'Authorization': f'OAuth {PRACTICUM_TOKEN}'}
 
 
-HOMEWORK_STATUSES = {
+HOMEWORK_VERDICTS = {
     'approved': 'Работа проверена: ревьюеру всё понравилось. Ура!',
     'reviewing': 'Работа взята на проверку ревьюером.',
     'rejected': 'Работа проверена: у ревьюера есть замечания.'
 }
-
-logging.basicConfig(
-    handlers=[logging.StreamHandler()],
-    level=logging.INFO,
-    format='%(asctime)s, %(levelname)s, %(message)s'
-)
-logger = logging.getLogger(__name__)
 
 
 def send_message(bot, message):
@@ -70,33 +63,34 @@ def check_response(response):
     if not isinstance(response, dict):
         message = 'Ответ API не является словарем'
         raise TypeError(message)
-    homework = response.get('homeworks')[0]
+    if not isinstance(response.get('homeworks'), list):
+        raise TypeError("response['homeworks'] не является списком")
+    if ['homeworks'][0] not in response:
+        message = 'В ответе API нет данного ключа'
+        raise IndexError(message)
+    homework = response.get('homeworks')
     return homework
 
 
 def parse_status(homework):
     """Инф-ция о статусе конкретной домашней работы."""
-    keys = ['status', 'homework_name']
-    for key in keys:
-        if key not in homework:
-            message = f'Ключа {key} нет в ответе API'
-            raise KeyError(message)
+    homework_name = homework['homework_name']
     homework_status = homework['status']
-    if homework_status not in HOMEWORK_STATUSES:
+    if (homework_name or homework_status) is None:
+        message = 'Ключа нет в ответе API'
+        logging.error(message)
+    if homework_status not in HOMEWORK_VERDICTS:
         message = 'Неизвестный статус домашней работы'
         raise KeyError(message)
-    homework_name = homework['homework_name']
-    verdict = HOMEWORK_STATUSES[homework_status]
+    verdict = HOMEWORK_VERDICTS[homework_status]
     return f'Изменился статус проверки работы "{homework_name}". {verdict}'
 
 
 def check_tokens():
     """Проверка доступности переменных окружения."""
-    if PRACTICUM_TOKEN is None or \
-            TELEGRAM_TOKEN is None or \
-            TELEGRAM_CHAT_ID is None:
-        return False
-    return True
+    if all([PRACTICUM_TOKEN, TELEGRAM_TOKEN, TELEGRAM_CHAT_ID]):
+        return True
+    return False
 
 
 def main():
@@ -119,7 +113,7 @@ def main():
                 message = 'Отсутствует в ответе новый статус'
                 logging.debug(message)
             elif homework is not None:
-                message = parse_status(homework)
+                message = parse_status((homework)[0])
                 if message is not None:
                     send_message(bot, message)
             time.sleep(RETRY_TIME)
@@ -130,4 +124,10 @@ def main():
 
 
 if __name__ == '__main__':
+    logging.basicConfig(
+        handlers=[logging.StreamHandler()],
+        level=logging.INFO,
+        format='%(asctime)s, %(levelname)s, %(message)s, %(name)s'
+    )
+    logger = logging.getLogger(__name__)
     main()
